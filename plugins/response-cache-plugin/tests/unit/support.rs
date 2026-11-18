@@ -10,7 +10,12 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use nemo_relay_plugin::{AnnotatedLlmResponse, CostEstimate, Json, Usage};
 
+use nemo_relay_runtime::api::runtime::stream_consumer_clock::{
+    StreamConsumerClock, StreamConsumerClockRegistration,
+};
+
 use crate::host::Host;
+use crate::record_replay::{ConsumerClock, ConsumerReport};
 
 /// One recorded mark: its name, data, and metadata.
 pub(crate) type RecordedMark = (String, Json, Json);
@@ -58,7 +63,34 @@ impl Host for TestHost {
         response.usage.and_then(|usage| usage.cost)
     }
 
+    fn enable_stream_consumer_timing(&self) -> Option<Box<dyn Send + Sync>> {
+        Some(Box::new(StreamConsumerClockRegistration::default()))
+    }
+
+    fn capture_stream_consumer_clock(&self) -> Option<Arc<dyn ConsumerClock>> {
+        StreamConsumerClock::current()
+            .map(|clock| Arc::new(TestClock(clock)) as Arc<dyn ConsumerClock>)
+    }
+
     fn warn(&self, _event: &str, _message: &str) {}
+}
+
+/// Relay's in-process clock, standing in for the runtime operations.
+pub(crate) struct TestClock(pub(crate) StreamConsumerClock);
+
+impl ConsumerClock for TestClock {
+    fn was_prefetched(&self, index: usize) -> bool {
+        self.0.was_prefetched(index, std::time::Instant::now())
+    }
+
+    fn observe(self: Arc<Self>, observer: Box<dyn FnOnce(ConsumerReport) + Send>) {
+        self.0.observe(move |report| {
+            observer(ConsumerReport {
+                delivered: report.delivered,
+                complete: report.complete,
+            })
+        });
+    }
 }
 
 /// The process-wide test host, used whenever no runtime host is installed.

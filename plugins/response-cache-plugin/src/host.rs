@@ -29,6 +29,12 @@ pub(crate) trait Host: Send + Sync {
         response: &AnnotatedLlmResponse,
         provider: Option<&str>,
     ) -> Option<CostEstimate>;
+    /// Turns on Relay's caller-poll timing for Python streams until the guard drops.
+    fn enable_stream_consumer_timing(&self) -> Option<Box<dyn Send + Sync>>;
+    /// Captures the caller-poll clock of the stream call that is running now.
+    fn capture_stream_consumer_clock(
+        &self,
+    ) -> Option<std::sync::Arc<dyn crate::record_replay::ConsumerClock>>;
     /// Writes a warning to the host's operational log.
     fn warn(&self, event: &str, message: &str);
 }
@@ -84,6 +90,22 @@ impl Host for RuntimeHost {
             .response_cost_for_provider(response, provider)
             .ok()
             .flatten()
+    }
+
+    fn enable_stream_consumer_timing(&self) -> Option<Box<dyn Send + Sync>> {
+        self.0
+            .enable_stream_consumer_timing()
+            .ok()
+            .map(|guard| Box::new(guard) as Box<dyn Send + Sync>)
+    }
+
+    fn capture_stream_consumer_clock(
+        &self,
+    ) -> Option<std::sync::Arc<dyn crate::record_replay::ConsumerClock>> {
+        let clock = self.0.capture_stream_consumer_clock().ok().flatten()?;
+        Some(std::sync::Arc::new(crate::record_replay::RuntimeClock(
+            clock,
+        )))
     }
 
     fn warn(&self, event: &str, message: &str) {

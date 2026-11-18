@@ -41,7 +41,8 @@ cwd = "source"
 bundle = "bundle"
 manifest = "relay-plugin.toml"
 
-# The plugin needs the Relay 1.0 pricing operations, which are not in a
-# published release yet. The SDK lock and this test host use the same commit.
+# The plugin needs the Relay 1.0 pricing and stream consumer timing operations,
+# which are not in a published release yet. The SDK lock and this test host use
+# the same commit.
 [relay]
-sha = "0dfd8e0a176d08d034f824d6fd97a2596465b4f1"
+sha = "62e1de4377ba20eb027e4b350fb326373d90f62c"
